@@ -4,7 +4,7 @@ data Partition(y=data$classe, p=0.7, list=FALSE)
 using rpart
 
 
-validation of
+validation of tetraing data set
 ```r
 #pred   A    B    C    D    E
 #A   1286  296   38   60   18
