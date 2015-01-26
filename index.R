@@ -4,17 +4,14 @@ library(ISLR)
 #library(sqldf)
 library(caret)
 
-data  <- read.csv("./submition/pml-training.csv")
-dataDA <- read.csv("./submition/pml-testing.csv")
+data  <- read.csv("./data/pml-training.csv")
+dataDA <- read.csv("./data/pml-testing.csv")
 
 #pack/discard data
 nzv <- nearZeroVar(data)
 nzvDA <- nearZeroVar(dataDA)
 
 data <- data[, -nzv]
-#data <- data[, -nzvDA]
-
-#dataDA <- dataDA[, -nzv]
 dataDA <- dataDA[, -nzvDA]
 
 
