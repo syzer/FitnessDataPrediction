@@ -14,5 +14,7 @@ validation of tetraing data set
 #E      3    0    0    0  475
 ```
 
-##Outcome Prediction
+##Outcome Prediction on 
+`pml-testing.csv`
+
 C D D A A C D D A A C D B A D D C D A B
