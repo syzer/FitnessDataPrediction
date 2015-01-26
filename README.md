@@ -66,14 +66,6 @@ rf <- foreach(ntree=rep(100, 4), .combine=randomForest::combine, .packages='rand
 }
 ```
 
-## Remove NA
-```r
-training[is.na(training <- training)] <- 0
-testing[is.na(testing <- testing)] <- 0
-dataDA[is.na(dataDA <- dataDA)] <- 0
-```
-
-
 ## Evaluation on model
 ```r
 predTraining <- predict(rf, newdata=training)
