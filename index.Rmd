@@ -60,7 +60,13 @@ training <- data[inTrain,]
 testing <- data[-inTrain,]
 dim(training)
 dim(testing)
+```
 
+---
+
+## Remove NA
+
+```{r}
 # Na->0, rf performs badly with NA
 training[is.na(training <- training)] <- 0
 testing[is.na(testing <- testing)] <- 0
@@ -71,7 +77,7 @@ dataDA[is.na(dataDA <- dataDA)] <- 0
 
 ## Train the model
 
-Please note used method 'rpart'.
+Please note used method 'randomForest'.
 
 ```{r}
 #100 trees packed in 4 random forests  
@@ -81,16 +87,6 @@ y <- training$classe
 rf <- foreach(ntree=rep(100, 4), .combine=randomForest::combine, .packages='randomForest') %dopar% {
   randomForest(x, y, ntree=ntree) 
 }
-```
-
----
-
-## Remove NA
-
-```{r}
-training[is.na(training <- training)] <- 0
-testing[is.na(testing <- testing)] <- 0
-dataDA[is.na(dataDA <- dataDA)] <- 0
 ```
 
 ---
