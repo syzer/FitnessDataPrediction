@@ -59,7 +59,7 @@ if (window.hljs && document.readyState && document.readyState === "complete") {
 
 <div id="load-required-libraries" class="section level2">
 <h2>Load required libraries</h2>
-<p>use install.package(‘name’) if you do not have them</p>
+<p>use install.package(‘name’) if you do not have them. Setting seeds to reproduce the result</p>
 <pre class="r"><code>library(gdata)</code></pre>
 <pre><code>## gdata: read.xls support for 'XLS' (Excel 97-2004) files ENABLED.
 ## 
@@ -75,74 +75,57 @@ if (window.hljs && document.readyState && document.readyState === "complete") {
 ## 
 ##     object.size</code></pre>
 <pre class="r"><code>library(ggplot2)
-library(ISLR)
-library(caret)</code></pre>
+library(foreach)
+library(doParallel)</code></pre>
+<pre><code>## Loading required package: iterators
+## Loading required package: parallel</code></pre>
+<pre class="r"><code>library(caret)</code></pre>
 <pre><code>## Loading required package: lattice</code></pre>
+<pre class="r"><code>registerDoParallel()
+set.seed(100)
+options(warn=-1)</code></pre>
 <hr />
 </div>
-<div id="load-and-clean-data" class="section level2">
-<h2>Load and clean data</h2>
-<pre class="r"><code>data  &lt;- read.csv(&quot;./data/pml-training.csv&quot;)
-dataDA &lt;- read.csv(&quot;./data/pml-testing.csv&quot;)
+<div id="load-and-clean-data-and-engineer-features" class="section level2">
+<h2>Load and clean data and engineer features</h2>
+<pre class="r"><code>data  &lt;- read.csv(&quot;./data/pml-training.csv&quot;, na.strings=c(&quot;&quot;, &quot;#DIV/0!&quot;))
+dataDA &lt;- read.csv(&quot;./data/pml-testing.csv&quot;,na.strings=c(&quot;&quot;, &quot;#DIV/0!&quot;))
 
-#pack/discard data
-nzv &lt;- nearZeroVar(data)
-nzvDA &lt;- nearZeroVar(dataDA)
+features &lt;- colnames(data[colSums(is.na(data)) == 0])[-(1:7)]
+features2 &lt;- colnames(dataDA[colSums(is.na(dataDA)) == 0])[-(1:7)]
+data &lt;- data[features]
+dataDA &lt;- dataDA[features2]
 
-data &lt;- data[, -nzv]
-dataDA &lt;- dataDA[, -nzvDA]</code></pre>
+#convert to numeric if possible 
+for(i in c(8:ncol(data)-1)) {data[,i] = as.numeric(as.character(data[,i]))}
+for(i in c(8:ncol(dataDA)-1)) {dataDA[,i] = as.numeric(as.character(dataDA[,i]))}</code></pre>
 <hr />
 </div>
-<div id="make-test-set" class="section level2">
-<h2>Make test set</h2>
+<div id="make-test-set-and-clean-na" class="section level2">
+<h2>Make test set, and clean NA</h2>
 <pre class="r"><code>inTrain &lt;- createDataPartition(y=data$classe, p=0.7, list=FALSE)
 training &lt;- data[inTrain,]
-testing &lt;- data[-inTrain,]</code></pre>
+testing &lt;- data[-inTrain,]
+dim(training)</code></pre>
+<pre><code>## [1] 13737    79</code></pre>
+<pre class="r"><code>dim(testing)</code></pre>
+<pre><code>## [1] 5885   79</code></pre>
+<pre class="r"><code># Na-&gt;0, rf performs badly with NA
+training[is.na(training &lt;- training)] &lt;- 0
+testing[is.na(testing &lt;- testing)] &lt;- 0
+dataDA[is.na(dataDA &lt;- dataDA)] &lt;- 0</code></pre>
 <hr />
 </div>
 <div id="train-the-model" class="section level2">
 <h2>Train the model</h2>
 <p>Please note used method ‘rpart’.</p>
-<pre class="r"><code>modFit &lt;- train(classe~., method=&quot;rpart&quot;, data=training)</code></pre>
-<pre><code>## Loading required package: rpart</code></pre>
-<pre class="r"><code>print(modFit$finalModel)</code></pre>
-<pre><code>## n= 13737 
-## 
-## node), split, n, loss, yval, (yprob)
-##       * denotes terminal node
-## 
-##  1) root 13737 9831 A (0.28 0.19 0.17 0.16 0.18)  
-##    2) roll_belt&lt; 129.5 12497 8637 A (0.31 0.21 0.19 0.18 0.11)  
-##      4) pitch_forearm&lt; -33.95 1089    8 A (0.99 0.0073 0 0 0) *
-##      5) pitch_forearm&gt;=-33.95 11408 8629 A (0.24 0.23 0.21 0.2 0.12)  
-##       10) cvtd_timestamp02/12/2011 13:33&gt;=0.5 909  228 A (0.75 0.25 0 0 0) *
-##       11) cvtd_timestamp02/12/2011 13:33&lt; 0.5 10499 8077 B (0.2 0.23 0.23 0.21 0.13)  
-##         22) magnet_dumbbell_z&lt; -38.5 3258 1964 A (0.4 0.31 0.08 0.18 0.038)  
-##           44) raw_timestamp_part_1&lt; 1.322838e+09 829   35 A (0.96 0.041 0.0012 0 0) *
-##           45) raw_timestamp_part_1&gt;=1.322838e+09 2429 1462 B (0.21 0.4 0.11 0.24 0.051) *
-##         23) magnet_dumbbell_z&gt;=-38.5 7241 5106 C (0.11 0.2 0.29 0.23 0.17) *
-##    3) roll_belt&gt;=129.5 1240   46 E (0.037 0 0 0 0.96) *</code></pre>
-<pre class="r"><code>modFit</code></pre>
-<pre><code>## CART 
-## 
-## 13737 samples
-##    57 predictor
-##     5 classes: 'A', 'B', 'C', 'D', 'E' 
-## 
-## No pre-processing
-## Resampling: Bootstrapped (25 reps) 
-## 
-## Summary of sample sizes: 13737, 13737, 13737, 13737, 13737, 13737, ... 
-## 
-## Resampling results across tuning parameters:
-## 
-##   cp          Accuracy   Kappa       Accuracy SD  Kappa SD  
-##   0.03972129  0.5341025  0.39439578  0.10510891   0.16088749
-##   0.04512935  0.4449341  0.26188970  0.08475793   0.14049741
-##   0.11677347  0.3262664  0.06485007  0.04328265   0.06367913
-## 
-## Accuracy was used to select the optimal model using  the largest value.
-## The final value used for the model was cp = 0.03972129.</code></pre>
+<pre class="r"><code>#100 trees packed in 4 random forests  
+x &lt;- training[-ncol(training)]
+y &lt;- training$classe
+
+rf &lt;- foreach(ntree=rep(100, 4), .combine=randomForest::combine, .packages='randomForest') %dopar% {
+  randomForest(x, y, ntree=ntree) 
+}</code></pre>
 <hr />
 </div>
 <div id="remove-na" class="section level2">
@@ -154,23 +137,49 @@ dataDA[is.na(dataDA &lt;- dataDA)] &lt;- 0</code></pre>
 </div>
 <div id="evaluation-on-model" class="section level2">
 <h2>Evaluation on model</h2>
-<pre class="r"><code>pred &lt;- predict(modFit,testing) 
-predRight &lt;- pred==testing$classe
-table(pred, testing$classe)    # like confusion matrix</code></pre>
-<pre><code>##     
-## pred    A    B    C    D    E
-##    A 1056  117    1    0    0
-##    B  218  411  113  273   54
-##    C  372  611  912  691  523
-##    D    0    0    0    0    0
-##    E   28    0    0    0  505</code></pre>
+<pre class="r"><code>predTraining &lt;- predict(rf, newdata=training)
+#confusionMatrix(predTraining,training$classe)
+predTesting &lt;- predict(rf, newdata=testing)
+confusionMatrix(predTesting,testing$classe)</code></pre>
+<pre><code>## Confusion Matrix and Statistics
+## 
+##           Reference
+## Prediction    A    B    C    D    E
+##          A 1673    8    0    0    0
+##          B    1 1131    4    0    0
+##          C    0    0 1019   12    2
+##          D    0    0    3  952    0
+##          E    0    0    0    0 1080
+## 
+## Overall Statistics
+##                                           
+##                Accuracy : 0.9949          
+##                  95% CI : (0.9927, 0.9966)
+##     No Information Rate : 0.2845          
+##     P-Value [Acc &gt; NIR] : &lt; 2.2e-16       
+##                                           
+##                   Kappa : 0.9936          
+##  Mcnemar's Test P-Value : NA              
+## 
+## Statistics by Class:
+## 
+##                      Class: A Class: B Class: C Class: D Class: E
+## Sensitivity            0.9994   0.9930   0.9932   0.9876   0.9982
+## Specificity            0.9981   0.9989   0.9971   0.9994   1.0000
+## Pos Pred Value         0.9952   0.9956   0.9864   0.9969   1.0000
+## Neg Pred Value         0.9998   0.9983   0.9986   0.9976   0.9996
+## Prevalence             0.2845   0.1935   0.1743   0.1638   0.1839
+## Detection Rate         0.2843   0.1922   0.1732   0.1618   0.1835
+## Detection Prevalence   0.2856   0.1930   0.1755   0.1623   0.1835
+## Balanced Accuracy      0.9988   0.9960   0.9951   0.9935   0.9991</code></pre>
 <hr />
 </div>
 <div id="predictions-on-test-set" class="section level2">
 <h2>Predictions on test set</h2>
-<pre class="r"><code>pred_DA &lt;- predict(modFit,dataDA) 
+<pre class="r"><code>pred_DA &lt;- predict(rf,newdata=dataDA) #variables in the training data missing in newdata
 pred_DA</code></pre>
-<pre><code>##  [1] B C C A C C C C A A C C C A C C C B B C
+<pre><code>##  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 
+##  B  A  B  A  A  E  D  B  A  A  B  C  B  A  E  E  A  B  B  B 
 ## Levels: A B C D E</code></pre>
 </div>
 

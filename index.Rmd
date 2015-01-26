@@ -6,51 +6,65 @@ output: html_document
 
 ## Load required libraries
 
-use install.package('name') if you do not have them
+use install.package('name') if you do not have them.
+Setting seeds to reproduce the result
 ```{r}
 library(gdata)
 library(ggplot2)
-library(ISLR)
+library(foreach)
+library(doParallel)
 library(caret)
+registerDoParallel()
 set.seed(100)
+options(warn=-1)
 ```
 
 ---
 
-## Load and clean data
+## Load and clean data and engineer features
 
 ```{r}
-data  <- read.csv("./data/pml-training.csv")
-dataDA <- read.csv("./data/pml-testing.csv")
+data  <- read.csv("./data/pml-training.csv", na.strings=c("", "#DIV/0!"))
+dataDA <- read.csv("./data/pml-testing.csv",na.strings=c("", "#DIV/0!"))
 
-#pack/discard data
-nzv <- nearZeroVar(data)
-nzvDA <- nearZeroVar(dataDA)
+features <- colnames(data[colSums(is.na(data)) == 0])[-(1:7)]
+features2 <- colnames(dataDA[colSums(is.na(dataDA)) == 0])[-(1:7)]
+data <- data[features]
+dataDA <- dataDA[features2]
 
-data <- data[, -nzv]
-dataDA <- dataDA[, -nzvDA]
-
+#convert to numeric if possible 
+for(i in c(8:ncol(data)-1)) {data[,i] = as.numeric(as.character(data[,i]))}
+for(i in c(8:ncol(dataDA)-1)) {dataDA[,i] = as.numeric(as.character(dataDA[,i]))}
 ```
 
 
 ```{r, echo=FALSE}
-data <- subset(data, select=-c(X,max_roll_belt, var_accel_arm,
+data <- subset(data, select=-c(#raw_timestamp_part_1,raw_timestamp_part_2,cvtd_timestamp,X,
+                               max_roll_belt, var_accel_arm,
                                min_pitch_dumbbell,
                                amplitude_roll_dumbbell, amplitude_pitch_dumbbell,
                                var_accel_dumbbell,avg_roll_dumbbell,stddev_roll_dumbbell,var_roll_dumbbell,
                                avg_pitch_dumbbell,max_picth_forearm))
 
+#remove the ones on evaluation set is empty
 data <- subset(data, select=-c(max_picth_belt, min_roll_belt, min_pitch_belt, amplitude_roll_belt, amplitude_pitch_belt, var_total_accel_belt, avg_roll_belt, stddev_roll_belt, var_roll_belt, avg_pitch_belt, stddev_pitch_belt, var_pitch_belt, avg_yaw_belt, stddev_yaw_belt, var_yaw_belt, max_picth_arm, max_yaw_arm, min_yaw_arm, amplitude_yaw_arm, max_roll_dumbbell, max_picth_dumbbell, min_roll_dumbbell, stddev_pitch_dumbbell, var_pitch_dumbbell, avg_yaw_dumbbell, stddev_yaw_dumbbell, var_yaw_dumbbell, min_pitch_forearm, amplitude_pitch_forearm, var_accel_forearm))
 ```
 
 ---
 
-## Make test set
+## Make test set, and clean NA
 
 ```{r}
 inTrain <- createDataPartition(y=data$classe, p=0.7, list=FALSE)
 training <- data[inTrain,]
 testing <- data[-inTrain,]
+dim(training)
+dim(testing)
+
+# Na->0, rf performs badly with NA
+training[is.na(training <- training)] <- 0
+testing[is.na(testing <- testing)] <- 0
+dataDA[is.na(dataDA <- dataDA)] <- 0
 ```
 
 ---
@@ -60,9 +74,13 @@ testing <- data[-inTrain,]
 Please note used method 'rpart'.
 
 ```{r}
-modFit <- train(classe~., method="rpart", data=training)
-print(modFit$finalModel)
-modFit
+#100 trees packed in 4 random forests  
+x <- training[-ncol(training)]
+y <- training$classe
+
+rf <- foreach(ntree=rep(100, 4), .combine=randomForest::combine, .packages='randomForest') %dopar% {
+  randomForest(x, y, ntree=ntree) 
+}
 ```
 
 ---
@@ -80,9 +98,10 @@ dataDA[is.na(dataDA <- dataDA)] <- 0
 ## Evaluation on model
 
 ```{r}
-pred <- predict(modFit,testing) 
-predRight <- pred==testing$classe
-table(pred, testing$classe)    # like confusion matrix
+predTraining <- predict(rf, newdata=training)
+#confusionMatrix(predTraining,training$classe)
+predTesting <- predict(rf, newdata=testing)
+confusionMatrix(predTesting,testing$classe)
 ```
 
 ---
@@ -90,6 +109,6 @@ table(pred, testing$classe)    # like confusion matrix
 ## Predictions on test set
 
 ```{r}
-pred_DA <- predict(modFit,dataDA) 
+pred_DA <- predict(rf,newdata=dataDA) #variables in the training data missing in newdata
 pred_DA
 ```
